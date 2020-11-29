@@ -17,10 +17,10 @@ new MyResolverPlugin(
   new Map([
     ...glob
       .sync(`${project1Config.projectPath}/**/`, { ignore: '**/node_modules/**' })
-      .map((it) => [it, {@: project1Config.projectPath}),
+      .map((it) => [it, {@: project1Config.projectPath}]),
     ...glob
       .sync(`${project2Config.projectPath}/**/`, { ignore: '**/node_modules/**' })
-      .map((it) => [it, {@: project2Config.projectPath}),
+      .map((it) => [it, {@: project2Config.projectPath}]),
   ])
 )
 ```
