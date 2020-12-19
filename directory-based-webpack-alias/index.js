@@ -2,6 +2,7 @@ const path = require('path')
 const memoize = require('lodash.memoize')
 const findUp = require('find-up')
 const assert = require('assert')
+const loaderUtils = require('loader-utils')
 
 const betterFindUp = memoize(
   (name, cwd) => {
@@ -10,9 +11,9 @@ const betterFindUp = memoize(
   (a, b) => a + b
 )
 
-const PLUGIN_NAME = 'MyCustomResolver'
+const PLUGIN_NAME = 'BetterAliasResolver'
 
-class MyResolverPlugin {
+class BetterAliasResolver {
   extractors = {
     'tsconfig.json': (filePath) => {
       const tsconfig = require(filePath)
@@ -53,7 +54,6 @@ class MyResolverPlugin {
     this.defaultAlias = defaultAlias
     this.options = Object.assign({ aliasRoots: ['tsconfig.json'] }, options)
     this.pathToAliasMap = pathToAliasMap
-    // console.log(pathToAliasMap)
 
     this.source = 'described-resolve'
     this.target = 'resolve'
@@ -79,18 +79,11 @@ class MyResolverPlugin {
       Object.assign(result, it)
     })
 
-    // console.log(result)
-
     return result
   }
 
   async updateRequest(data) {
-    if (
-      !data ||
-      !data.request ||
-      // data.request === 'undefined'
-      data.path.includes('node_modules')
-    ) {
+    if (!data || !data.request || data.path.includes('node_modules')) {
       return false
     }
 
@@ -104,8 +97,10 @@ class MyResolverPlugin {
       return false
     }
 
-    data.request =
+    data.request = loaderUtils.stringifyRequest(
+      this,
       alias[segments[0]] + (segments.length > 1 ? path.sep + segments.slice(1).join(path.sep) : '')
+    )
 
     return true
   }
@@ -122,4 +117,4 @@ class MyResolverPlugin {
   }
 }
 
-module.exports = MyResolverPlugin
+module.exports = BetterAliasResolver
