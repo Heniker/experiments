@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "lodash.get": "^4.4.2",
-    "lodash.set": "^4.3.2"
+    "lodash.set": "^4.3.2",
+    "vue-router": "^3.4.9"
   }
 }
