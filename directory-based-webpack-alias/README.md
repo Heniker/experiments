@@ -1,3 +1,5 @@
+# Directory based webpack alias
+
 So I stumbled across webpack limitation that it doesn't allow you to create aliases for specific folder.
 
 For example, imagine you have 2 entry points, _A_ and _B_ in your webpack config which are basicly separate projects. They do not import anything from each other, but they share some files in `common` folder (standard real life monorepo structure).
