@@ -1,1 +1,0 @@
-This is something like **nuxt routing by pages directory**
