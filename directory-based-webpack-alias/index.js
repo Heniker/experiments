@@ -2,18 +2,32 @@ const path = require('path')
 const memoize = require('lodash.memoize')
 const findUp = require('find-up')
 const assert = require('assert')
-const loaderUtils = require('loader-utils')
 
-const betterFindUp = memoize(
-  (name, cwd) => {
-    return findUp(name, { cwd })
-  },
-  (a, b) => a + b
+const memoizeFindUp = memoize(
+  (name, cwd) => findUp(name, { cwd }),
+  (...arg) => arg.join('')
 )
 
-const PLUGIN_NAME = 'BetterAliasResolver'
+const betterFindUp = async (name, cwd) => {
+  const matchingFiles = []
 
-class BetterAliasResolver {
+  let currentDir = cwd
+
+  while (true) {
+    const filePath = await memoizeFindUp(name, currentDir)
+
+    if (!filePath) {
+      return matchingFiles
+    }
+
+    matchingFiles.push(filePath)
+    currentDir = path.dirname(path.dirname(filePath))
+  }
+}
+
+const PLUGIN_NAME = 'DirectoryBasedPlugin'
+
+class DirectoryBasedPlugin {
   extractors = {
     'tsconfig.json': (filePath) => {
       const tsconfig = require(filePath)
@@ -40,7 +54,10 @@ class BetterAliasResolver {
           .map(([pathKey, pathValues]) => {
             const pathVal = pathValues[0]
 
-            assert(pathKey && pathVal, `Invalid paths in ${filePath} folder`)
+            assert(
+              pathKey && pathVal,
+              `${PLUGIN_NAME}: tsconfig.json extractor: Invalid paths in ${filePath} folder`
+            )
 
             const key = pathKey.replace('/*', '')
             const value = path.resolve(path.dirname(filePath), baseUrl, pathVal.replace('/*', ''))
@@ -52,7 +69,10 @@ class BetterAliasResolver {
 
   constructor(defaultAlias, options, pathToAliasMap = new Map()) {
     this.defaultAlias = defaultAlias
-    this.options = Object.assign({ aliasRoots: ['tsconfig.json'] }, options)
+    this.options = Object.assign(
+      { aliasRoots: ['tsconfig.json'], ignore: ['node_modules'] },
+      options
+    )
     this.pathToAliasMap = pathToAliasMap
 
     this.source = 'described-resolve'
@@ -62,17 +82,19 @@ class BetterAliasResolver {
   async findAlias(data) {
     let aliasesArr = await Promise.all(
       this.options.aliasRoots.map(async (it) => {
-        const configRoot = await betterFindUp(it, data.path)
+        const configRoots = await betterFindUp(it, data.path)
 
-        if (!configRoot) {
-          return false
-        }
+        return configRoots.map((it) => {
+          if (!it || !this.extractors[path.basename(it)]) {
+            return false
+          }
 
-        return this.extractors[path.basename(configRoot)](configRoot)
+          return this.extractors[path.basename(it)](it)
+        })
       })
     )
 
-    aliasesArr = aliasesArr.filter(Boolean)
+    aliasesArr = aliasesArr.flat().filter(Boolean)
 
     const result = {}
     aliasesArr.forEach((it) => {
@@ -83,24 +105,24 @@ class BetterAliasResolver {
   }
 
   async updateRequest(data) {
-    if (!data || !data.request || data.path.includes('node_modules')) {
+    if (!data || !data.request || this.options.ignore.find((it) => data.path.includes(it))) {
       return false
     }
 
-    const segments = data.request.split('/')
+    const requestSegements = data.request.split('/')
 
     const requestLocation = data.path.replace(/\\/g, '/') + '/'
 
-    const alias = this.pathToAliasMap.get(requestLocation) || (await this.findAlias(data))
+    const rootAlias = this.pathToAliasMap.get(requestLocation) || (await this.findAlias(data))
+    const alias = Object.assign({}, this.defaultAlias, rootAlias || {})
 
-    if (!alias || !alias[segments[0]]) {
+    if (!alias[requestSegements[0]]) {
       return false
     }
 
-    data.request = loaderUtils.stringifyRequest(
-      this,
-      alias[segments[0]] + (segments.length > 1 ? path.sep + segments.slice(1).join(path.sep) : '')
-    )
+    data.request =
+      alias[requestSegements[0]] +
+      (requestSegements.length > 1 ? path.sep + requestSegements.slice(1).join(path.sep) : '')
 
     return true
   }
@@ -117,4 +139,4 @@ class BetterAliasResolver {
   }
 }
 
-module.exports = BetterAliasResolver
+module.exports = DirectoryBasedPlugin
