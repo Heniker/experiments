@@ -46,7 +46,6 @@ export class Observable<T extends unknown> {
 
 const observable = new Observable<number>()
 
-observable.emit(0)
 ;(async () => {
   for await (const it of observable.gen()) {
     console.log(it)
