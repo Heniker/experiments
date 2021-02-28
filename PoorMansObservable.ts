@@ -1,92 +1,72 @@
 // I think this covers like 90% of RxJS use cases
 
-import assert from 'assert'
-
-const disalowConcurrency = (fn: (...arg: any[]) => void) => {
+function disalowConcurrency(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  const originalFn = descriptor.value
   let inprogressPromise = Promise.resolve()
-
-  return async (...args: unknown[]) => {
+  descriptor.value = async function (...args: unknown[]) {
     await inprogressPromise
-    inprogressPromise = inprogressPromise.then(() => fn(...args))
-
+    inprogressPromise = inprogressPromise.then(() => originalFn.bind(this)(...args))
     return inprogressPromise
   }
 }
 
 export class Observable<T extends unknown> {
-  isActive: boolean = false // designed to stop quirky behavior in sync environments
-  gen?: () => AsyncGenerator<unknown, unknown, unknown>
-  callback?: (arg: unknown) => void
+  private resolve: (arg: T) => void = () => {}
 
-  async setCallback(fn: (arg: unknown) => void): Promise<void> {
-    this.callback = fn
+  private promise?: Promise<T | void>
 
-    for await (const it of this.createIterable()) {
-      this.callback(it)
-    }
-  }
+  private isActive = false
 
-  createIterable() {
-    assert(this.gen, 'Listener not found')
+  gen: () => AsyncGenerator<unknown, unknown, unknown>
 
-    this.isActive = true
+  emit: (arg: T) => void
 
-    return this.gen()
-  }
-
-  /**
-   * @returns A callback that can be called to notify subscribed elements about it's argument
-   */
-  createListener() {
-    let resolve_: (arg: T) => void
-    let promise = new Promise<T>((resolve, reject) => {
-      resolve_ = resolve
+  @disalowConcurrency
+  private async updatePromise(arg: T) {
+    this.resolve(arg)
+    await this.promise
+    this.promise = new Promise<T>((resolve) => {
+      this.resolve = resolve
     })
+  }
 
-    const updatePromise = disalowConcurrency(async (arg: T) => {
-      resolve_(arg)
-      promise = new Promise<T>((resolve, reject) => {
-        resolve_ = resolve
-      })
+  constructor() {
+    this.promise = new Promise<T>((resolve) => {
+      this.resolve = resolve
     })
 
     this.gen = async function* () {
+      this.isActive = true
       while (true) {
-        yield await promise
+        yield await this.promise
       }
     }
 
-    return (arg: T) => {
+    this.emit = (arg: T) => {
       if (this.isActive) {
-        updatePromise(arg)
+        void this.updatePromise(arg)
       }
     }
   }
 }
 
-// usage :
+// usage:
 
-const emitter = new Observable<number>()
+const observable = new Observable<number>()
 
-const listener = emitter.createListener()
-
+observable.emit(0)
 ;(async () => {
-  for await (const it of emitter.createIterable()) {
+  for await (const it of observable.gen()) {
     console.log(it)
   }
 })()
-// equivalent to
-emitter.setCallback(console.log)
 
-listener(1)
-listener(2)
+observable.emit(1)
+observable.emit(2)
 
-setTimeout(() => listener(42), 1000)
+setTimeout(() => observable.emit(42), 1000)
 
 // output:
 // 1
-// 1
 // 2
-// 2
-// 42
 // 42
