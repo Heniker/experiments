@@ -11,15 +11,13 @@ function disalowConcurrency(target: any, propertyKey: string, descriptor: Proper
 }
 
 export class Observable<T extends unknown> {
-  private resolve: (arg: T) => void = () => {}
+  private resolve!: (arg: T) => void
 
-  private promise?: Promise<T | void>
+  private promise = new Promise<T>((resolve) => {
+    this.resolve = resolve
+  })
 
   private isActive = false
-
-  gen: () => AsyncGenerator<unknown, unknown, unknown>
-
-  emit: (arg: T) => void
 
   @disalowConcurrency
   private async updatePromise(arg: T) {
@@ -30,22 +28,16 @@ export class Observable<T extends unknown> {
     })
   }
 
-  constructor() {
-    this.promise = new Promise<T>((resolve) => {
-      this.resolve = resolve
-    })
-
-    this.gen = async function* () {
-      this.isActive = true
-      while (true) {
-        yield await this.promise
-      }
+  emit(arg: T) {
+    if (this.isActive) {
+      void this.updatePromise(arg)
     }
+  }
 
-    this.emit = (arg: T) => {
-      if (this.isActive) {
-        void this.updatePromise(arg)
-      }
+  async *gen() {
+    this.isActive = true
+    while (true) {
+      yield await this.promise
     }
   }
 }
