@@ -34,10 +34,6 @@ export class Observable<T extends unknown> {
     return this.gen()
   }
 
-  stop() {
-    this.isActive = false
-  }
-
   /**
    * @returns A callback that can be called to notify subscribed elements about it's argument
    */
