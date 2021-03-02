@@ -1,5 +1,3 @@
-// I think this covers like 90% of RxJS use cases
-
 function disalowConcurrency(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalFn = descriptor.value
   let inprogressPromise = Promise.resolve()
