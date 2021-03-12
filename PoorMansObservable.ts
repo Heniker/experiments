@@ -5,9 +5,9 @@ export class Observable<T extends unknown> {
 
   private promises: Set<WeakRef<Promise<T>>> = new Set()
 
-  emitCount = 0
+  private emitCount = 0
 
-  finalizationGroup = new FinalizationRegistry((ref) => {
+  private finalizationGroup = new FinalizationRegistry((ref) => {
     this.promises.delete(ref)
     this.emitCount--
   })
@@ -28,7 +28,7 @@ export class Observable<T extends unknown> {
     this.promises.add(ref)
   }
 
-  async *values() {
+  private async *values() {
     const iterator = this.promises.values()
 
     ;[...new Array(this.emitCount)].forEach(() => {
