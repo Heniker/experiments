@@ -1,51 +1,49 @@
-// prolly the most needless usage of WeakRef
+import assert from 'assert'
+
+interface NextableI<T> {
+  value: T
+  next?: NextableI<T>
+}
 
 export class Observable<T extends unknown> {
   private resolve: (arg: T) => void = () => {}
+  private nextable: NextableI<Promise<T>> = { value: undefined as any, next: {} as any }
 
-  private promises: Set<WeakRef<Promise<T>>> = new Set()
+  private updatePromise(arg: T) {
+    const oldResolve = this.resolve
+    const newResolve = new Promise<T>((resolve) => {
+      this.resolve = resolve
+    })
 
-  private emitCount = 0
+    this.nextable = this.nextable.next as { value: Promise<T> }
+    this.nextable.next = { value: newResolve }
 
-  private finalizationGroup = new FinalizationRegistry((ref) => {
-    this.promises.delete(ref)
-    this.emitCount--
-  })
+    oldResolve(arg)
+  }
 
   constructor() {
     this.updatePromise(undefined as any)
   }
 
-  private updatePromise(arg: T) {
-    this.resolve(arg)
-
-    const promise = new Promise<T>((resolve) => {
-      this.resolve = resolve
-    })
-    const ref = new WeakRef(promise)
-
-    this.finalizationGroup.register(promise, ref)
-    this.promises.add(ref)
-  }
-
-  private async *values() {
-    const iterator = this.promises.values()
-
-    ;[...new Array(this.emitCount)].forEach(() => {
-      iterator.next()
-    })
+  async *values() {
+    let currentNextable = this.nextable
 
     while (true) {
-      yield await iterator.next().value.deref()
+      assert(
+        currentNextable.next,
+        'Next value not found for observerable. Did you forget to add async?'
+      )
+      currentNextable = currentNextable.next
+      const val = await currentNextable.value
+      yield val
     }
   }
 
-  [Symbol.asyncIterator] = this.values
-
   emit(arg: T) {
-    this.emitCount++
     void this.updatePromise(arg)
   }
+
+  [Symbol.asyncIterator] = this.values
 }
 
 // usage:
@@ -54,6 +52,11 @@ const obs = new Observable<string>()
 
 obs.emit('ignored')
 ;(async () => {
+  var a = obs.values()
+  console.log( a.next())
+  console.log(a.next())
+  console.log(await a.next())
+
   for await (let it of obs) {
     console.log(it)
   }
