@@ -1,5 +1,3 @@
-import assert from 'assert'
-
 interface NextableI<T> {
   value: T
   next?: NextableI<T>
@@ -7,16 +5,17 @@ interface NextableI<T> {
 
 export class Observable<T extends unknown> {
   private resolve: (arg: T) => void = () => {}
+  // generator *emulation* because it's not possible to clone JS generators
   private nextable: NextableI<Promise<T>> = { value: undefined as any, next: {} as any }
 
   private updatePromise(arg: T) {
     const oldResolve = this.resolve
-    const newResolve = new Promise<T>((resolve) => {
+    const nextPromise = new Promise<T>((resolve) => {
       this.resolve = resolve
     })
 
     this.nextable = this.nextable.next as { value: Promise<T> }
-    this.nextable.next = { value: newResolve }
+    this.nextable.next = { value: nextPromise }
 
     oldResolve(arg)
   }
@@ -29,11 +28,7 @@ export class Observable<T extends unknown> {
     let currentNextable = this.nextable
 
     while (true) {
-      assert(
-        currentNextable.next,
-        'Next value not found for observerable. Did you forget to add async?'
-      )
-      currentNextable = currentNextable.next
+      currentNextable = currentNextable.next as { value: Promise<T> }
       const val = await currentNextable.value
       yield val
     }
@@ -52,11 +47,6 @@ const obs = new Observable<string>()
 
 obs.emit('ignored')
 ;(async () => {
-  var a = obs.values()
-  console.log( a.next())
-  console.log(a.next())
-  console.log(await a.next())
-
   for await (let it of obs) {
     console.log(it)
   }
