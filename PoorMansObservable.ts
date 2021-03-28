@@ -8,7 +8,11 @@ export class Observable<T extends unknown> {
   // generator *emulation* because it's not possible to clone JS generators
   private nextable: NextableI<Promise<T>> = { value: undefined as any, next: {} as any }
 
-  private updatePromise(arg: T) {
+  constructor() {
+    this.emit(undefined as any)
+  }
+
+  emit(arg: T) {
     const oldResolve = this.resolve
     const nextPromise = new Promise<T>((resolve) => {
       this.resolve = resolve
@@ -20,10 +24,6 @@ export class Observable<T extends unknown> {
     oldResolve(arg)
   }
 
-  constructor() {
-    this.updatePromise(undefined as any)
-  }
-
   async *values() {
     let currentNextable = this.nextable
 
@@ -32,10 +32,6 @@ export class Observable<T extends unknown> {
       const val = await currentNextable.value
       yield val
     }
-  }
-
-  emit(arg: T) {
-    void this.updatePromise(arg)
   }
 
   [Symbol.asyncIterator] = this.values
