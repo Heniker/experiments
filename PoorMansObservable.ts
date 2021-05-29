@@ -5,7 +5,7 @@ interface NextableI<T> {
 
 export class Observable<T extends unknown> {
   private resolve: (arg: T) => void = () => {}
-  // generator *emulation* because it's not possible to clone JS generators
+  // basic LinkedList
   private nextable: NextableI<Promise<T>> = { value: undefined as any, next: {} as any }
 
   constructor() {
