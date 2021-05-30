@@ -8,6 +8,9 @@ var a = new Promise((res) => {
   })
 })
 
+// so instead of `(await (await (await a).a).b.c.d).e`
+// you can `await flapPromise(a).a.b.c.d.e`
+
 const getNested = (obj, path) =>
   path.reduce(async (prev, curr) => (await prev) && (await prev)[curr], obj)
 
