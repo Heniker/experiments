@@ -1,3 +1,5 @@
+// https://github.com/component/emitter
+
 interface NextableI<T> {
   value: T
   next?: NextableI<T>
